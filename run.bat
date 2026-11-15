@@ -1,6 +1,5 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
-chcp 65001 >nul
 
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
@@ -9,35 +8,35 @@ set "LOCAL_PYTHON=%ROOT%\.python"
 set "BASE_PYTHON="
 
 if not exist "%ROOT%\app.py" (
-    echo [ОШИБКА] Рядом с run.bat не найден файл app.py.
+    echo [ERROR] app.py was not found next to run.bat.
     goto :early_error
 )
 if not exist "%ROOT%\requirements.txt" (
-    echo [ОШИБКА] Рядом с run.bat не найден файл requirements.txt.
+    echo [ERROR] requirements.txt was not found next to run.bat.
     goto :early_error
 )
 
 pushd "%ROOT%" >nul 2>&1
 if errorlevel 1 (
-    echo [ОШИБКА] Не удалось открыть папку проекта: %ROOT%
+    echo [ERROR] Cannot open the project folder: %ROOT%
     goto :early_error
 )
 
-echo Папка проекта: %ROOT%
+echo Project folder: %ROOT%
 echo.
 
 if exist "%VENV%\Scripts\python.exe" (
     "%VENV%\Scripts\python.exe" -c "import sys; raise SystemExit(0 if (3, 10) <= sys.version_info[:2] < (3, 14) else 1)" >nul 2>&1
     if not errorlevel 1 goto :dependencies
-    echo Локальное окружение повреждено или использует неподдерживаемый Python.
-    echo Оно будет создано заново.
+    echo The local environment is damaged or uses an unsupported Python version.
+    echo It will be created again.
 )
 
 if exist "%VENV%" (
     rmdir /s /q "%VENV%"
     if exist "%VENV%" (
-        echo [ОШИБКА] Не удалось удалить старую папку .venv.
-        echo Закройте приложение и другие программы, использующие её, затем повторите запуск.
+        echo [ERROR] Cannot remove the old .venv folder.
+        echo Close the application and other programs that use it, then try again.
         goto :error
     )
 )
@@ -46,45 +45,46 @@ call :find_python
 if not defined BASE_PYTHON call :install_python
 if not defined BASE_PYTHON goto :error
 
-echo Создание изолированного окружения .venv...
+echo Creating the isolated .venv environment...
 %BASE_PYTHON% -m venv "%VENV%"
 if errorlevel 1 (
-    echo [ОШИБКА] Не удалось создать виртуальное окружение.
+    echo [ERROR] Cannot create the virtual environment.
     goto :error
 )
 
 :dependencies
-echo Проверка версий библиотек...
-"%VENV%\Scripts\python.exe" -m pip install --quiet --disable-pip-version-check -r "%ROOT%\requirements.txt"
+echo Checking library versions...
+echo The first installation can take several minutes. Please wait.
+"%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check -r "%ROOT%\requirements.txt"
 if errorlevel 1 (
     echo.
-    echo [ОШИБКА] Не удалось установить или обновить библиотеки.
-    echo При первой настройке нужен доступ к интернету. Проверьте соединение и повторите запуск.
+    echo [ERROR] Cannot install or update the libraries.
+    echo An internet connection is required for the first setup. Check the connection and try again.
     goto :error
 )
 
 "%VENV%\Scripts\python.exe" -m pip check >nul
 if errorlevel 1 (
-    echo [ОШИБКА] Обнаружен конфликт установленных библиотек:
+    echo [ERROR] A library dependency conflict was detected:
     "%VENV%\Scripts\python.exe" -m pip check
     goto :error
 )
 
 "%VENV%\Scripts\python.exe" -c "import matplotlib, numpy, pandas, plotly, scipy, sklearn, streamlit" >nul 2>&1
 if errorlevel 1 (
-    echo [ОШИБКА] Библиотеки установлены, но хотя бы одна из них не загружается.
+    echo [ERROR] The libraries are installed, but at least one of them cannot be imported.
     "%VENV%\Scripts\python.exe" -c "import matplotlib, numpy, pandas, plotly, scipy, sklearn, streamlit"
     goto :error
 )
 
-echo Библиотеки в порядке. Запуск приложения...
-echo Адрес: http://127.0.0.1:8501
-echo Для остановки закройте это окно или нажмите Ctrl+C.
+echo The libraries are ready. Starting the application...
+echo Address: http://127.0.0.1:8501
+echo To stop the application, close this window or press Ctrl+C.
 echo.
 "%VENV%\Scripts\python.exe" -m streamlit run "%ROOT%\app.py" --server.address 127.0.0.1 --server.port 8501 --browser.gatherUsageStats false
 if errorlevel 1 (
     echo.
-    echo [ОШИБКА] Приложение завершилось с ошибкой. Проверьте сообщение выше.
+    echo [ERROR] The application exited with an error. Check the messages above.
     goto :error
 )
 
@@ -116,19 +116,19 @@ if not errorlevel 1 set "BASE_PYTHON=python3"
 goto :eof
 
 :install_python
-echo Подходящий Python не найден. Будет установлен Python 3.11 локально в папку проекта.
-echo Системный Python и его настройки изменены не будут.
-echo Для скачивания нужен интернет.
+echo No suitable Python was found. Python 3.11 will be installed locally in the project folder.
+echo The system Python and its settings will not be changed.
+echo An internet connection is required for the download.
 set "PYTHON_INSTALLER=%TEMP%\strain-python-3.11.9-%RANDOM%%RANDOM%.exe"
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile $env:PYTHON_INSTALLER"
 if errorlevel 1 (
-    echo [ОШИБКА] Не удалось скачать Python с python.org.
+    echo [ERROR] Cannot download Python from python.org.
     del /q "%PYTHON_INSTALLER%" >nul 2>&1
     goto :eof
 )
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$s=Get-AuthenticodeSignature -FilePath $env:PYTHON_INSTALLER; if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'Python Software Foundation') { exit 1 }"
 if errorlevel 1 (
-    echo [ОШИБКА] Загруженный установщик не прошёл проверку цифровой подписи.
+    echo [ERROR] The downloaded Python installer failed the digital signature check.
     del /q "%PYTHON_INSTALLER%" >nul 2>&1
     goto :eof
 )
@@ -136,12 +136,12 @@ if errorlevel 1 (
 set "INSTALL_RESULT=%ERRORLEVEL%"
 del /q "%PYTHON_INSTALLER%" >nul 2>&1
 if not "%INSTALL_RESULT%"=="0" (
-    echo [ОШИБКА] Установщик Python завершился с кодом %INSTALL_RESULT%.
+    echo [ERROR] The Python installer exited with code %INSTALL_RESULT%.
     goto :eof
 )
 "%LOCAL_PYTHON%\python.exe" -c "import sys" >nul 2>&1
 if errorlevel 1 (
-    echo [ОШИБКА] Локальный Python установлен некорректно.
+    echo [ERROR] The local Python installation is broken.
     goto :eof
 )
 set "BASE_PYTHON="%LOCAL_PYTHON%\python.exe""
